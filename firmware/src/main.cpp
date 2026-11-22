@@ -7,6 +7,7 @@
   NFC 部分は M5Unit-NFC の examples/UnitUnified/NFCA/Emulation を元にしている。
 */
 #include <M5Unified.h>
+#include <utility/M5IOE1_Class.hpp>
 #include <M5UnitUnified.h>
 #include <M5UnitUnifiedNFC.h>
 #include <cstring>
@@ -102,9 +103,19 @@ void draw_card(bool force)
 
 bool start_nfc()
 {
+    // NFC の有効化／リセット解除: PYB_NFC_EN = M5IOE1 GPIO4 を High に
+    // （公式 PaperMono NFC サンプルより。これが無いと RF が動かない）
+    auto& ioe1 = M5.getIOExpander(0);
+    ioe1.setHighImpedance(m5::M5IOE1_Class::gpio4, false);
+    ioe1.setDirection(m5::M5IOE1_Class::gpio4, true);
+    ioe1.digitalWrite(m5::M5IOE1_Class::gpio4, true);
+    delay(10);
+
     auto cfg      = nfc_unit.config();
     cfg.emulation = true;
     cfg.mode      = NFC::A;
+    cfg.using_irq = true;  // PaperMono は ST25R3916 の IRQ が G6 に配線されている
+    cfg.irq       = 6;
     nfc_unit.config(cfg);
 
     if (!Units.add(nfc_unit, M5.In_I2C)) {
