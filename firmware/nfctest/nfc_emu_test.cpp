@@ -17,6 +17,7 @@ using namespace m5::nfc;
 using namespace m5::nfc::a;
 
 namespace {
+const char* g_status = "not started";
 m5::unit::UnitUnified units;
 m5::unit::UnitNFC nfc{};
 EmulationLayerA emulation{nfc};
@@ -76,14 +77,14 @@ void setup()
     nfc.config(c);
 
     if (!m5::unit::wiring::i2cClass(units, nfc, M5.In_I2C) || !units.begin()) {
-        Serial.println("NFC init failed");
+        g_status = "NFC init failed";
         return;
     }
     build_memory();
     if (card.emulate(Type::MIFARE_Ultralight, kUid, 7) && emulation.begin(card, cardMemory, sizeof(cardMemory))) {
-        Serial.printf("EMULATION READY: %s %s\n", card.typeAsString().c_str(), card.uidAsString().c_str());
+        g_status = "EMULATION READY";
     } else {
-        Serial.println("EMULATION FAILED");
+        g_status = "EMULATION FAILED";
     }
 }
 
@@ -97,6 +98,12 @@ void loop()
     if (s != last) {
         last = s;
         Serial.printf("NFC-A state: %s\n", state_name(s));
+    }
+    // 起動直後のログはモニタ接続前に流れてしまうので、3 秒ごとに状態を出す
+    static uint32_t last_print = 0;
+    if (millis() - last_print > 3000) {
+        last_print = millis();
+        Serial.printf("[status] %s / NFC-A state: %s\n", g_status, state_name(s));
     }
     yield();
 }
