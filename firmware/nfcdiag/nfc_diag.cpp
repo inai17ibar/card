@@ -11,6 +11,8 @@
 #include <M5UnitUnified.h>
 #include <M5UnitUnifiedNFC.h>
 #include <wiring/m5_unit_unified_wiring.hpp>
+#include <algorithm>
+#include <cstdlib>
 
 namespace cmd = m5::unit::st25r3916::command;
 namespace rv  = m5::unit::st25r3916::regval;
