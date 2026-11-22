@@ -147,6 +147,8 @@ bool start_nfc()
 
 void go_to_sleep()
 {
+    // PC と USB 接続中（シリアルが開いている間）は開発しやすいよう寝ない
+    if (Serial) return;
     M5_LOGI("deep sleep");
     lcd.waitDisplay();
     // 第1引数 0 は「スリープしない」の意味なので、タイマーなし＋タッチ復帰を明示
