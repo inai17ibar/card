@@ -184,9 +184,14 @@ void setup()
 
 void loop()
 {
-    M5.update();
     Units.update();
-    emu_a.update();  // 毎ループ呼ぶ必要がある
+    emu_a.update();  // 毎ループ呼ぶ必要がある。NFC-A は応答タイミングが厳しい
+
+    // タッチ・ボタンの読み取り（I2C を使う）は NFC の邪魔をしないよう間引く
+    static uint32_t last_ui = 0;
+    if (emu_a.state() == EmulationLayerA::State::Active || millis() - last_ui < 50) return;
+    last_ui = millis();
+    M5.update();
 
     // 操作があれば起きている時間を延長
     if (M5.Touch.getCount() || M5.BtnA.wasPressed() || M5.BtnB.wasPressed()) {
