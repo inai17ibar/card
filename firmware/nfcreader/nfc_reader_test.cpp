@@ -39,11 +39,21 @@ void setup()
 
     auto c      = unit.config();
     c.mode      = NFC::F;
-    c.using_irq = true;
+    // 切り分け: IRQ ピンを使わず、レジスタのポーリングで動かす
+#ifndef NFC_USE_IRQ
+#define NFC_USE_IRQ 0
+#endif
+    c.using_irq = NFC_USE_IRQ;
     c.irq       = 6;
     unit.config(c);
 
     g_status = (m5::unit::wiring::i2cClass(units, unit, M5.In_I2C) && units.begin()) ? "READER READY" : "NFC init failed";
+
+    uint8_t type{}, rev{};
+    if (unit.readICIdentity(type, rev)) {
+        Serial.printf("IC identity: type=0x%02X rev=0x%02X (ST25R3916 なら正常)\n", type, rev);
+    }
+    Serial.printf("IRQ mode: %s\n", NFC_USE_IRQ ? "GPIO6 interrupt" : "polling");
 }
 
 void loop()
@@ -61,6 +71,9 @@ void loop()
     static uint32_t last = 0;
     if (millis() - last > 3000) {
         last = millis();
-        Serial.printf("[status] %s / found so far: %lu\n", g_status, (unsigned long)g_found);
+        uint8_t aux{};
+        unit.readAuxiliaryDisplay(aux);
+        Serial.printf("[status] %s / found so far: %lu / IRQ pin(G6)=%d / aux=0x%02X\n", g_status,
+                      (unsigned long)g_found, digitalRead(6), aux);
     }
 }
