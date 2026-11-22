@@ -18,8 +18,45 @@ namespace cmd = m5::unit::st25r3916::command;
 namespace rv  = m5::unit::st25r3916::regval;
 
 namespace {
+// レジスタを直接読むため protected メンバを公開したサブクラス
+class DiagNFC : public m5::unit::UnitNFC {
+public:
+    using m5::unit::UnitST25R3916::read_register8;
+    using m5::unit::UnitST25R3916::write_register8;
+};
 m5::unit::UnitUnified units;
-m5::unit::UnitNFC unit{};
+DiagNFC unit{};
+
+uint8_t reg(uint8_t r)
+{
+    uint8_t v{};
+    unit.read_register8(r, v);
+    return v;
+}
+
+void dump_registers(const char* title)
+{
+    Serial.printf("---- %s ----\n", title);
+    for (uint8_t r = 0; r < 0x40; ++r) {
+        Serial.printf("%02X:%02X%s", r, reg(r), (r % 8 == 7) ? "\n" : " ");
+    }
+}
+
+// 電源電圧を測る（mpsv: 0=VDD, 1=VDD_A, 2=VDD_D, 3=VDD_RF）。LSB は 23.4mV
+void measure_supplies()
+{
+    const char* names[] = {"VDD", "VDD_A", "VDD_D", "VDD_RF"};
+    const uint8_t orig  = reg(0x2C);
+    for (uint8_t m = 0; m < 4; ++m) {
+        unit.write_register8((uint8_t)0x2C, (uint8_t)((orig & ~0x06) | (m << 1)));
+        unit.writeDirectCommand(cmd::CMD_MEASURE_POWER_SUPPLY);
+        delay(2);
+        uint8_t v{};
+        unit.readADConverterOutput(v);
+        Serial.printf("%-6s = %4u mV (raw %u)\n", names[m], (unsigned)(v * 234 / 10), v);
+    }
+    unit.write_register8((uint8_t)0x2C, orig);
+}
 bool ready = false;
 uint8_t baseline = 0;
 
@@ -51,9 +88,25 @@ void setup()
     ready = m5::unit::wiring::i2cClass(units, unit, M5.In_I2C) && units.begin();
     if (!ready) return;
 
+    delay(2000);  // モニタ接続を待つ
+    measure_supplies();
+
     // 発振器・受信・送信をすべてオン = RF フィールドを出す
     unit.writeOperationControl(rv::en | rv::rx_en | rv::tx_en);
     delay(20);
+    uint8_t aux{};
+    unit.readAuxiliaryDisplay(aux);
+    Serial.printf("after tx_en: aux=0x%02X tx_on=%d\n", aux, (aux & rv::tx_on) ? 1 : 0);
+    dump_registers("registers (tx_en set)");
+
+    if (!(aux & rv::tx_on)) {
+        // 別の方法: 衝突回避付きのフィールド ON コマンド
+        unit.writeDirectCommand(cmd::CMD_NFC_INITIAL_FIELD_ON);
+        delay(20);
+        unit.readAuxiliaryDisplay(aux);
+        Serial.printf("after NFC_INITIAL_FIELD_ON: aux=0x%02X tx_on=%d\n", aux, (aux & rv::tx_on) ? 1 : 0);
+        dump_registers("registers (after field on cmd)");
+    }
     measure(baseline);
 }
 
