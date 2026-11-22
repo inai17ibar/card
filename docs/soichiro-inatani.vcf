@@ -1,0 +1,12 @@
+BEGIN:VCARD
+VERSION:3.0
+N:稲谷;壮一郎;;;
+FN:稲谷 壮一郎
+X-PHONETIC-LAST-NAME:Inatani
+X-PHONETIC-FIRST-NAME:Soichiro
+ORG:ソニー株式会社
+TITLE:研究開発エンジニア
+URL;type=pref:https://inai17ibar.github.io/card/
+X-SOCIALPROFILE;type=github:https://github.com/inai17ibar
+X-SOCIALPROFILE;type=linkedin:https://www.linkedin.com/in/soichiro-inatani/
+END:VCARD
