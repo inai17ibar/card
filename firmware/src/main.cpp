@@ -107,17 +107,28 @@ bool start_nfc()
     cfg.mode      = NFC::A;
     nfc_unit.config(cfg);
 
-    if (!Units.add(nfc_unit, M5.In_I2C) || !Units.begin()) {
-        M5_LOGE("NFC init failed");
+    if (!Units.add(nfc_unit, M5.In_I2C)) {
+        M5_LOGE("NFC: Units.add failed (I2C 0x50 not found?)");
+        return false;
+    }
+    if (!Units.begin()) {
+        M5_LOGE("NFC: Units.begin failed");
         return false;
     }
     if (!build_ntag213_memory()) {
-        M5_LOGE("URL too long for NTAG213");
+        M5_LOGE("NFC: URL too long for NTAG213");
         return false;
     }
-    if (!picc.emulate(Type::NTAG_213, uid, sizeof(uid))) return false;
-    if (!emu_a.begin(picc, picc_memory, sizeof(picc_memory))) return false;
+    if (!picc.emulate(Type::NTAG_213, uid, sizeof(uid))) {
+        M5_LOGE("NFC: picc.emulate failed");
+        return false;
+    }
+    if (!emu_a.begin(picc, picc_memory, sizeof(picc_memory))) {
+        M5_LOGE("NFC: emu_a.begin failed");
+        return false;
+    }
 
+    M5.Speaker.tone(2000, 80);  // NFC 準備完了の合図
     const auto& e = emu_a.emulatePICC();
     M5_LOGI("Emulating %s UID:%s", e.typeAsString().c_str(), e.uidAsString().c_str());
     return true;
@@ -139,6 +150,16 @@ void setup()
 {
     auto cfg = M5.config();
     M5.begin(cfg);
+    M5.Log.setLogLevel(m5::log_target_serial, ESP_LOG_INFO);
+
+    // 本体の RGB LED を消灯（赤は PMIC 経由で起動時に点くことがある）
+    M5.Led.setAllColor(0, 0, 0);
+    M5.Led.display();
+
+    // I2C 上のデバイスを列挙（NFC の ST25R3916 は 0x50 にいるはず）
+    for (uint8_t a = 1; a < 0x7F; ++a) {
+        if (M5.In_I2C.scanID(a)) M5_LOGI("I2C device: 0x%02X", a);
+    }
 
     const bool cold_boot = esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED;
     draw_card(cold_boot);
@@ -167,6 +188,13 @@ void loop()
     }
 
     // 読み取り中はスリープしない
+    // NFC の状態変化をログに出す（かざしたとき Ready/Active になれば読まれている）
+    static auto last_state = EmulationLayerA::State::None;
+    if (emu_a.state() != last_state) {
+        last_state = emu_a.state();
+        M5_LOGI("NFC state: %d", (int)last_state);
+    }
+
     if (emu_a.state() != EmulationLayerA::State::Active && millis() - awake_since > AWAKE_MS) {
         go_to_sleep();
     }
